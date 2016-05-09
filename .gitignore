@@ -1,2 +1,8 @@
+#node modules
 node_modules
+
+#server logs
 chatCatDebug.log
+
+# dev.json
+app/config/development.json
