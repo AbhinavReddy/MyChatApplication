@@ -1,0 +1,17 @@
+{
+	"host": "http://localhost:3000",
+	"dbURI": "mongodb://abhinav:password@ds013202.mlab.com:13202/abhinav_chat_db",
+	"sessionSecret": "secretKey",
+	"fb" :{
+		"clientID" : "998305766918230",
+		"clientSecret": "6238856ec7057c1b130ff9b91999208a",
+		"callbackURL": "//localhost:3000/auth/facebook/callback",
+		"profileFields" : ["id","displayName","photos"]
+	},
+	"redis" :{
+		"host":"127.0.0.1",
+		"port": 6379,
+		"password":""
+	}
+	
+}

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>ChatCat - Topic Goes Here</title>
+	<link rel="stylesheet" href="/css/chatroomStyles.css">
+	
+	<script src="/js/jquery-2.1.4.min.js"></script>
+	<script src="/socket.io/socket.io.js"></script>
+	<script src="http://cdnjs.cloudflare.com/ajax/libs/jquery.form/3.51/jquery.form.min.js"></script>
+
+	<script>
+	'use strict'
+	$(()=>{
+		let socket = io('<%= host %>/chatter',{
+			transports: ['websocket']
+		});
+		let roomID = '<%= roomID %>';
+		let user = '<%= user.fullName %>';
+		let userPic = '<%= user.profilePic %>';
+		let chatUsers = $('.chatUsers');
+		let chatInput = $("input[name='userInput']")
+		let chatMessagesDiv = $(".chatMessages")
+
+		socket.on('connect',()=>{
+			socket.emit('join',{
+				roomID,
+				user,
+				userPic
+			})
+			socket.emit('getPreviosChats',{
+				roomID
+			})
+		})
+
+		let userList = user =>{
+			return `<div class="userBlock">
+					<div class="userPic"><img src="${user.userPic}" alt="${user.user}"></div>
+					<div class="cuserName">${user.user}</div>
+				</div>`;
+		}
+		socket.on('updateUserList', data =>{
+			let parsedData = JSON.parse(data);
+			let userListData ='';
+			for(let user of parsedData){
+				userListData += userList(user);
+			}
+			chatUsers.html('').html(userListData);
+		})
+
+		socket.on('updatePreviosChats', data =>{
+			let parsedData = JSON.parse(data);
+			console.log(parsedData)
+			//update messages
+			//console.log('parsedData : ',parsedData)
+			for(let message of parsedData){
+				if(typeof message.data !== 'object'){
+					updateFeed(message.userPic,message.data)
+				}
+				else{
+					updateFeedWithAttachment(message.userPic,message.data)
+				}	
+			}
+		})
+
+		let updateFeed = (userPic,message) =>{
+			let template = `<div class="chatBlock">
+					<div class="userPic"><img src="${userPic}"></div>
+					<div class="chatMsg">${message}</div>
+				</div>`;
+			$(template).hide().prependTo(chatMessagesDiv).slideDown(200)
+		}
+
+		let updateFeedWithAttachment = (userPic,attachmentData) =>{
+			console.log('in updateFeedWithAttachment')
+			console.log('attachmentData :' ,attachmentData)
+			let mimes = [
+				"image/gif",
+				"image/png",
+				"image/jpeg",
+				"audio/mp3"
+			]
+
+			if(mimes.indexOf(attachmentData.mimeType)>-1 
+				&& mimes.indexOf(attachmentData.mimeType)<=2 ){
+				let template = `<div class="chatBlock">
+					<div class="userPic"><img src="${userPic}"></div>
+					<div class="chatMsg"><img width="200" height="200" src="http://localhost:3000/attachment/${attachmentData.fileID}"></div>
+				</div>`;
+				$(template).hide().prependTo(chatMessagesDiv).slideDown(200)
+			}
+			else{
+				let template = `<div class="chatBlock">
+					<div class="userPic"><img src="${userPic}"></div>
+					<div class="chatMsg">
+						<audio controls>
+						  <source src="http://localhost:3000/attachment/${attachmentData.fileID}" type="${attachmentData.mimeType}">
+						</audio>
+					</div>
+				</div>`;
+				$(template).hide().prependTo(chatMessagesDiv).slideDown(200)
+			}
+		}
+
+		chatInput.on('keyup',function(e){
+			e.preventDefault();
+			let messageFld = $(this)
+			if(e.which === 13 && messageFld.val() !==''){
+				socket.emit('newMesaage',{
+					roomID,
+					user,
+					userPic,
+					message : messageFld.val()
+				})
+				//update local feed
+				//updateFeed(userPic,messageFld.val())
+				messageFld.val('')
+			}
+		})
+
+		socket.on('inMessage' , data =>{
+			let parsedData = JSON.parse(data);
+			console.log('inMessage :',parsedData)
+			if(parsedData.message !== undefined){
+				updateFeed(parsedData.userPic,parsedData.message)
+			}
+			else{
+				console.log('in inMessage')
+				updateFeedWithAttachment(parsedData.userPic,parsedData.attachmentData)
+			}
+		})
+
+		/*$("#uploadFile").on('click',function(e){
+			//alert('uploadFile');
+			var myFile = $("#myFile").get(0).files[0];
+			var formData = new FormData();
+			formData.append('file',myFile);
+
+			$.ajax({
+			       url : 'http://localhost:3000/upload',
+			       type : 'POST',
+			       data : {
+			       		'file' : formData
+			       },
+			       cache: false,
+				   contentType: 'multipart/form-data',
+				   processData: false,
+			       success : function(data) {
+			           console.log(data);
+			           alert(data);
+			       }
+			});
+		})*/
+
+		$('#uploadForm').submit(function() {
+			//e.preventDefault();
+	        $(this).ajaxSubmit({
+
+	        	error: function(xhr) {
+	        		console.log('Error: ' + xhr);
+	            },
+
+	            success: function(response) {
+	        		//$("#status").empty().text(response);
+	                console.log(response);
+	                let attachmentData = JSON.parse(response)
+	                //bradcast to server
+	                socket.emit('newAttachment',{
+						roomID,
+						user,
+						userPic,
+						attachmentData
+					})
+	            }
+	    	});
+	        //Very important line, it disable the page refresh.
+	    	return false;
+	    });
+
+	});
+	</script>
+</head>
+<body>
+	<div class="container">
+		<div class="titlePanel">
+			<h1>ChatCAT | <%= room %></h1>
+		</div>
+		<div class="controls">
+			<div class="userPicHolder"><img src="<%= user.profilePic %>" alt="<%= user.fullName%>"></div>
+			<p class="userName"><%= user.fullName%></p>
+			<a href="/rooms" id="roomsBtn">Rooms</a>
+			<a href="/logout" id="logOutBtn">Logout</a>
+		</div>
+		<div class="chatListDiv">
+			<div class="chatMessagesPanel">
+				<div class="chatMessages">
+				<!-- Loop this for chat messages -->
+								
+				<!-- loop end -->
+				</div>
+				<div class="typePanel">
+					<input type="text" name="userInput" placeholder="Type here and press enter">
+					<a href="#" id="pic" class="fileUploadBtn">
+
+					<form id="uploadForm"
+				         enctype="multipart/form-data"
+				         action="/upload"
+				         method="post">
+				      <input type="file" name="myFile" />
+				      <input type="submit" value="Upload Image" name="submit">
+				    </form>
+
+
+
+					Photo</a>
+				</div>
+			</div>
+			<div class="chatUsers">
+			<!-- Loop this for chat users -->
+				
+			<!-- loop end -->
+			</div>
+		</div>
+	</div>
+</body>
+</html>
